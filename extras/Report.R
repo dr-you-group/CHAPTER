@@ -1,31 +1,35 @@
+# install.packages(c("foreign", "tsModel", "lmtest", "Epi", "splines", "vcd", "dplyr", "qcc"))
 library(dplyr)
-library(foreign)
-library(tsModel)
-library("lmtest")
-library("Epi")
-library("splines")
-library("vcd")
 library(ggplot2)
+# library(foreign)
+# library(tsModel)
+# library("lmtest")
+# library("Epi")
+# library("splines")
+# library("vcd")
 
 databaseIds <- c("Australia_LPD", "Japan_Claims")
-outputFolder <- "./data"
+rootDataFolder <- "./data"
+outputFolder <- "./data/output"
 source("./extras/FunctionsForReporting.R")
 
-#dataFolderAus <- "./data/Results_Australia_LPD"
-#dataFolderJp <- "./data/Results_Japan_Claims"
+####Configuration####
+personYearsMin <- 1e+5 #100,000
+incidenceRateMin <- 1e-4
+calendarYearsInt <- c(2010:2021)
 
 ####Data load####
 #load files into the environment
 for (i in seq(length(databaseIds))){
   databaseId = databaseIds[i]
-  dataFolder <- file.path(outputFolder, sprintf("Results_%s",databaseId))
-  #files <- list.files(dataFolder, pattern = "*.csv")
+  dataFolder <- file.path(rootDataFolder, sprintf("Results_%s",databaseId))
+  # files <- list.files(dataFolder, pattern = "*.csv")
   files <- c("incidence_rate.csv")
   if (i==1){
     
     # Remove data already in global environment:
     tableNames <- gsub("\\.csv", "", files) 
-    camelCaseNames <- SqlRender::snakeCaseToCamelCase(tableNames)
+    camelCaseNames <- snakeCaseToCamelCase(tableNames)
     camelCaseNames <- unique(camelCaseNames)
     rm(list = camelCaseNames)
     
@@ -37,66 +41,79 @@ for (i in seq(length(databaseIds))){
 }
 
 #Subsetting the cohorts of interest
-cohortIdsSub <- c(135,136,138) #Hypertension
+cohortIdsSub <- c(88:92, 96:99, 135,136,138,141, 142:161) #Hypertension
 
-#Subsetting the cohorts of certain definition
-cohortIdsInd <- 135 
-personYearsMin <- 1e+5 #100,000
-incidenceRateMin <- 1e-4
-calendarYearsInt <- c(2010:2021)
+for (cohortIdsInd in cohortIdsSub){
+  # cohortIdsInd <- 138 
+  
+  incidenceRateSub <- incidenceRate %>% 
+    filter(cohortId %in% cohortIdsInd) %>%
+    filter(personYears >= personYearsMin) %>%
+    filter(incidenceRate >= incidenceRateMin) %>%
+    filter(calendarYear %in% calendarYearsInt)
+  
+  #make interruption column   
+  incidenceRateSub <- incidenceRateSub %>%
+    mutate(interruption = ifelse(calendarYear >= 2020,1,0)) #covid
+  
+  #### Interrupted time-series analysis ####
+  for(databaseId in databaseIds){
+    irSubInd <- incidenceRateSub %>% filter(databaseId == !!databaseId)
+    irSubIndTotalPop <- irSubInd %>% filter(is.na(gender)) %>% filter(is.na(ageGroup))
+    varData <- irSubIndTotalPop %>% select(cohortCount, personYears, incidenceRate, interruption, calendarYear)
+    varData$time <- as.numeric(factor(varData$calendarYear))
+    if(!(max(varData$time)-1) == max(varData$calendarYear)-min(varData$calendarYear)){
+      next #make sure that the years are consecutive  ##should be recorded in the log
+    } 
+    if(nrow(varData)==0) next ##should be recorded in the log
+    timespan = seq(max(varData$time))
+    timespanInterrupted = (max(varData$time)-sum(varData$interruption==1)+1):max(varData$time)
+    
+    # fit poisson regression
+    fitModel <- glm(cohortCount ~ interruption+time,
+                    offset = log(personYears), 
+                    family = "poisson", 
+                    data = varData)
+    
+    summary(fitModel)$dispersion #check dispersion ##should be recorded in the log
+    
+    Epi::ci.lin(fitModel,Exp=T)["interruption",]
+    Epi::ci.lin(fitModel,Exp=T)["interruption",4:7]
+    
+    #predict and plot the model
+    datanew <- data.frame(personYears = mean(varData$personYears), 
+                          interruption=rep(c(0,1),c(sum(varData$interruption==0),sum(varData$interruption==1))), 
+                          time= varData$time)
+    counterfactual <- data.frame(personYears = mean(varData$personYears), 
+                                 interruption=0,
+                                 time= varData$time)
 
-incidenceRateSub <- incidenceRate %>% 
-  filter(cohortId %in% cohortIdsInd) %>%
-  filter(personYears >= personYearsMin) %>%
-  filter(incidenceRate >= incidenceRateMin) %>%
-  filter(calendarYear %in% calendarYearsInt)
-
-#make covid column   
-incidenceRateSub <- incidenceRateSub %>%
-  mutate(covid = ifelse(calendarYear >= 2020,1,0))
-
-
-#### Interrupted time-series analysis ####
-
-Australia <- incidenceRateSub %>% filter(databaseId == "Australia_LPD")
-totalAustralia <- Australia %>% filter(is.na(gender)) %>% filter(is.na(ageGroup))
-
-varData <- totalAustralia %>% select(cohortCount, covid)
-varData$time <- c(1:nrow(varData))
-
-#over-dispersion test
-qcc::qcc.overdispersion.test(varData$cohortCount,type="poisson")
-
-# fit poisson regression
-fitModel <- glm(cohortCount ~ covid+time,family = quasipoisson, data = varData)
-
-ci.lin(fitModel,Exp=T)["covid",4:7]
-
-# # Autocorrelation test
-# res3 <- residuals(fitModel,type="deviance")
-# 
-# #tiff(filename = "./plot/acf_total_selfharm.tif",
-# #     width = 950, height = 550, units = "px", pointsize = 16)
-# par(mfrow = c(1,2))
-# acf(res3, main = "")
-# pacf(res3, main = "")
-# #dev.off()
-
-#predict and plot the model
-datanew <- data.frame(covid=rep(c(0,1),c(70,11)), time= 10:90/10)
-counterfactual <- data.frame(covid=0,time= 10:90/10)
-
-pred <- predict(fitModel,type="response",datanew)
-predCounter <- predict(fitModel,type="response",counterfactual)
-predCounter <- predCounter[71:81]
-
-g <- ggplot() + 
-  geom_point(data = varData, aes(x = time, y = cohortCount), shape = 1) + 
-  geom_line(aes(x= 10:90/10, y = pred, color = "Fitted values"), size = 0.8) + 
-  geom_line(aes(x= 80:90/10, y = predCounter, color = "Counterfactual"), lty = 2, size = 0.8) +
-  scale_x_continuous(limits = c(1,9), breaks = c(1:9), labels = as.character(c(2013:2021))) +
-  labs(color="", x = "year", y = "count") +
-  theme_bw() 
-
-g
+    pred <- predict(fitModel,type="response",datanew) / mean(varData$personYears) * 1000
+    predCounter <- predict(fitModel,type="response",counterfactual) / mean(varData$personYears) * 1000
+    predCounter <- predCounter[c(min(timespanInterrupted)-1,timespanInterrupted)]
+    counterSeq = c(min(timespanInterrupted)-1,timespanInterrupted)
+    
+    # If you want to change colors, modify this
+    colors <- c("Fitted values" = "cyan3",
+                "Observed values" = "black",
+                "Counterfactual" = "red")
+    
+    g <- ggplot() + 
+      geom_point(data = varData, aes(x = time, y = incidenceRate), shape = 1) + 
+      geom_line(data = varData, aes(x = time, y = incidenceRate, color = "Observed values"), size = 0.2) +
+      geom_line(aes(x = timespan, y = pred, color = "Fitted values"), size = 0.8) +
+      geom_line(aes(x = counterSeq, y = predCounter, color = "Counterfactual"), lty = 2, size = 0.8) +
+      scale_x_continuous(breaks = timespan, labels = varData$calendarYear) +
+      labs(color="", x = "Year", y = "Incidence rate (/1000PYs)") +
+      scale_color_manual(values = colors) +
+      theme_bw() 
+    g
+    
+    #Save the plot
+    if(!file.exists(outputFolder)){
+      dir.create(outputFolder)
+    }
+    ggsave(file.path(outputFolder, sprintf("incidence_rate_plot_cohort%s_db%s.png", cohortIdsInd, databaseId)), g)
+  }
+}
 
