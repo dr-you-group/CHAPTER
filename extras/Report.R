@@ -113,7 +113,10 @@ for (cohortIdsInd in cohortIdsSub){
     if(!file.exists(outputFolder)){
       dir.create(outputFolder)
     }
-    ggsave(file.path(outputFolder, sprintf("incidence_rate_plot_cohort%s_db%s.png", cohortIdsInd, databaseId)), g)
+    ggsave(file.path(outputFolder, 
+                     sprintf("incidence_rate_plot_cohort%s_db%s.png", cohortIdsInd, databaseId)), 
+           g,
+           height = 4, width = 6)
   }
 }
 
