@@ -41,7 +41,13 @@ for (i in seq(length(databaseIds))){
 }
 
 #Subsetting the cohorts of interest
-cohortIdsSub <- c(88:92, 96:99, 135,136,138,141, 142:161) #Hypertension
+cohortIdsSub <- c(88:92,#dM
+                  93:94, #AF
+                  96:99, #MM
+                  135,136,138,141, #HTN
+                  142:161, #coronary
+                  171:174 #Multiple Sclerosis
+                  ) 
 
 for (cohortIdsInd in cohortIdsSub){
   # cohortIdsInd <- 138 
