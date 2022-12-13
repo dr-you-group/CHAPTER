@@ -1,0 +1,3 @@
+cohortName,ruleSequence,ruleName,cohortId
+Pediatric_Asthma,0,Asthma Treatment,88
+Pediatric_Asthma,1,no COPD prior,88
