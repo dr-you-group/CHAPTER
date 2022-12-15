@@ -120,6 +120,19 @@ checkForInputFileEncoding <- function(fileName) {
                                 targetDialect = attr(connection, "dbms"),
                                 tempEmulationSchema = tempEmulationSchema)
     DatabaseConnector::executeSql(connection, sql)
+    
+    if(tableName == "cohort_inclusion") {
+      
+      stats <- readr::read_csv(fileName, 
+                               col_types = readr::cols(),
+                               guess_max = min(1e7))
+      
+      stats <- stats %>%  
+        mutate_if(is.logical, as.character) %>%
+        tidyr::replace_na(replace = list(description = 'na'))
+      
+      readr::write_csv(x = stats, path = fileName)
+    }
   }
   fetchStats("cohort_inclusion")
   fetchStats("cohort_inc_result")
