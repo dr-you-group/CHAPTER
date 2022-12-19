@@ -1,10 +1,13 @@
 Package: CHAPTER
 Type: Package
-Title: A Package Skeleton for Cohort Diagnostics
+Title: CHAPTER
 Version: 0.0.1
-Author: Martijn Schuemie [aut, cre]
-Maintainer: Martijn J. Schuemie <schuemie@ohdsi.org>
-Description: A skeleton package, to be used as a starting point when you just want to run cohort diagnostics.
+Author@R: c(
+	person("Subin", "Kim", , "jg051623@yuhs.ac", role = c("aut", "cre")),
+	person("Seng Chan", "You",,"seng.chan.you@ohdsi.org", role = c("aut"))
+	)
+Maintainer: Subin Kim <jg051623@yuhs.ac>
+Description: A package for CHAPTER study.
 Depends:
     DatabaseConnector (>= 2.2.0)
 Imports:
