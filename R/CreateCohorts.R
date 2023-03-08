@@ -128,7 +128,7 @@ checkForInputFileEncoding <- function(fileName) {
                                guess_max = min(1e7))
       
       stats <- stats %>%  
-        mutate_if(is.logical, as.character) %>%
+        dplyr::mutate_if(is.logical, as.character) %>%
         tidyr::replace_na(replace = list(description = 'na'))
       
       readr::write_csv(x = stats, path = fileName)

@@ -53,13 +53,14 @@
 #' @param runTemporalCohortCharacterization Generate and export the temporal cohort characterization? 
 #' @param minCellCount         The minimum number of subjects contributing to a count before it can be included 
 #'                             in packaged results.
+#' @importFrom dplyr %>%
 #'
 #' @export
 runCohortDiagnostics <- function(connectionDetails,
                                  cdmDatabaseSchema,
                                  cohortDatabaseSchema = cdmDatabaseSchema,
                                  cohortTable = "cohort",
-                                 oracleTempSchema = cohortDatabaseSchema,
+                                 oracleTempSchema = NULL,
                                  outputFolder,
                                  databaseId = "Unknown",
                                  databaseName = "Unknown",
@@ -68,10 +69,8 @@ runCohortDiagnostics <- function(connectionDetails,
                                  runInclusionStatistics = TRUE,
                                  runIncludedSourceConcepts = TRUE,
                                  runOrphanConcepts = TRUE,
-                                 runTimeDistributions = TRUE,
                                  runBreakdownIndexEvents = TRUE,
                                  runIncidenceRate = TRUE,
-                                 runCohortOverlap = TRUE,
                                  runCohortCharacterization = TRUE,
                                  runTemporalCohortCharacterization = TRUE,
                                  minCellCount = 5) {
@@ -110,10 +109,10 @@ runCohortDiagnostics <- function(connectionDetails,
                                           runInclusionStatistics = runInclusionStatistics,
                                           runIncludedSourceConcepts = runIncludedSourceConcepts,
                                           runOrphanConcepts = runOrphanConcepts,
-                                          runTimeDistributions = runTimeDistributions,
+                                          runTimeDistributions = FALSE,
                                           runBreakdownIndexEvents = runBreakdownIndexEvents,
                                           runIncidenceRate = runIncidenceRate,
-                                          runCohortOverlap = runCohortOverlap,
+                                          runCohortOverlap = FALSE,
                                           runCohortCharacterization = runCohortCharacterization,
                                           runTemporalCohortCharacterization = runTemporalCohortCharacterization,
                                           minCellCount = minCellCount)
