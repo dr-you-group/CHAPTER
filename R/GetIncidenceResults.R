@@ -85,9 +85,9 @@ getIncidenceResults <- function(cdm,
     dplyr::select(outcome_id, outcome_table_name)
   
   for(tn in outcomesAllPop %>% dplyr::pull(outcome_table_name) %>% unique()) {
-    outcomeIdsAllPop <- outcomesAllPop %>%
-      dplyr::filter(outcome_table_name == tn) %>%
-      dplyr::pull(outcome_id) %>%
+    
+    outcomeIdsAllPop <- cdm[[tn]] |> 
+      dplyr::pull(cohort_definition_id) |> 
       unique()
     
     inc <- IncidencePrevalence::estimateIncidence(

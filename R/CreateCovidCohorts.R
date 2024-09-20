@@ -526,14 +526,14 @@ createCovidCohorts <- function(cdm,
 
   # GET PASC OUTCOMES AS ACUTE OUTCOMES ON THEIR OWN TOO
   if(attr(cdm[["acute_cohorts"]], "cohort_set") %>% 
-     dplyr::tally() %>% dplyr::pull() < 6) {
+     dplyr::tally() %>% dplyr::pull() < 9) {
     acuteCohortsAll <- cdm[["acute_cohorts"]] %>%
       dplyr::union_all(cdm[["pasc_cohorts"]] %>%
-                         dplyr::mutate(cohort_definition_id = cohort_definition_id + 5)) %>%
+                         dplyr::mutate(cohort_definition_id = cohort_definition_id + 8)) %>%
       dplyr::compute()
     attr(acuteCohortsAll, "cohort_set") <- attr(cdm[["acute_cohorts"]], "cohort_set") %>%
       dplyr::union_all(attr(cdm[["pasc_cohorts"]], "cohort_set") %>%
-                         dplyr::mutate(cohort_definition_id = cohort_definition_id + 5)) %>%
+                         dplyr::mutate(cohort_definition_id = cohort_definition_id + 8)) %>%
       dplyr::compute()
     attr(acuteCohortsAll, "cohort_count") <- getCohortCount(acuteCohortsAll)
     attr(acuteCohortsAll, "cohort_attrition") <- attr(acuteCohortsAll, "cohort_count") %>%
