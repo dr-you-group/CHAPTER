@@ -52,129 +52,83 @@ createCovidCohorts <- function(cdm,
   ParallelLogger::logInfo("- Getting COVID related outcome cohorts")
   
   newinfInit <- cdm[["acute_cohorts"]] %>%
-    dplyr::filter(.data$cohort_definition_id == 2) %>% 
+    dplyr::filter(.data$cohort_definition_id == 1) %>% 
     dplyr::select(
       "subject_id",
       "cohort_definition_id",
       "cohort_start_date",
       "cohort_end_date"
     ) %>% 
-    dplyr::compute()
-
-  attrition <- dplyr::tibble(
-    number_records = newinfInit %>% 
-      dplyr::tally() %>% 
-      dplyr::pull(),
-    reason = "Initial events"
-  )
-
+    dplyr::compute(temporary = FALSE, name = "infected")
+  
+  attr(newinfInit, "cohort_attrition") <- attr(newinfInit, "cohort_attrition") %>%
+    dplyr::filter(cohort_definition_id == 1)
+  attr(newinfInit, "cohort_set") <- attr(newinfInit, "cohort_set") %>%
+    dplyr::filter(cohort_definition_id == 1)
+  
   # No COVID infection previous 42 days
   newinfInit <- newinfInit %>%
     PatientProfiles::addCohortIntersectDays(
       targetCohortTable = "acute_cohorts",
-      targetCohortId = 2, 
+      targetCohortId = 1, 
       window = list(c(-Inf,-1)),
-      nameStyle = "date_previous") %>%
+      nameStyle = "date_previous",
+      order = "last") %>%
     dplyr::filter(is.na(.data$date_previous) | .data$date_previous < -42) %>%
     dplyr::select(-"date_previous") %>%
-    dplyr::compute()
-
-  attrition <- dplyr::union_all(
-    attrition,
-    dplyr::tibble(
-      number_records = newinfInit %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "Event washout"
-    )
-  )
+    dplyr::compute(temporary = FALSE) %>%
+    omopgenerics::recordCohortAttrition(reason = "Event washout")
 
   # Check the individuals are in observation at cohort entry
   newinfInit <- newinfInit %>%
     PatientProfiles::addInObservation() %>%
     dplyr::filter(.data$in_observation == 1) %>%
     dplyr::select(-"in_observation") %>%
-    dplyr::compute()
-
-  attrition <- dplyr::union_all(
-    attrition,
-    dplyr::tibble(
-      number_records = newinfInit %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "In observation at cohort entry"
-    )
-  )
+    dplyr::compute(temporary = FALSE) %>%
+    omopgenerics::recordCohortAttrition(reason = "In observation at cohort entry")
 
   # Prior history 365 days
   newinfInit <- newinfInit %>%
     PatientProfiles::addPriorObservation() %>%
     dplyr::filter(.data$prior_observation >= 365) %>%
     dplyr::select(-c("prior_observation")) %>%
-    dplyr::compute()
-
-  attrition <- dplyr::union_all(
-    attrition,
-    dplyr::tibble(
-      number_records = newinfInit %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "365 days of prior history"
-    )
-  )
+    dplyr::compute(temporary = FALSE) %>%
+    omopgenerics::recordCohortAttrition(reason = "365 days of prior history")
 
   # Historical influenza 90 days
   newinfInit <- newinfInit %>%
     PatientProfiles::addCohortIntersectDays(
       targetCohortTable = "acute_cohorts",
-      targetCohortId = 4, 
+      targetCohortId = 2, 
       window = list(c(-90,-1)),
       nameStyle = "last_flu") %>%
     dplyr::filter(is.na(last_flu)) %>%
     dplyr::select(-c("last_flu")) %>%
-    dplyr::compute()
-
-  attrition <- dplyr::union_all(
-    attrition,
-    dplyr::tibble(
-      number_records = newinfInit %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "Historical influenza"
-    )
-  )
+    dplyr::compute(temporary = FALSE) %>%
+    omopgenerics::recordCohortAttrition(reason = "Historical influenza")
 
   # keep only people starting after study_start_date and 1 year before latest data availability
   oneYearLda <- latestDataAvailability - 365
   newinfInit <- newinfInit %>%
     dplyr::filter(.data$cohort_start_date > as.Date("2018-01-01") & # studyStartDate
                     .data$cohort_start_date < .env$oneYearLda) %>%
-    dplyr::compute()
-
-  attrition <- dplyr::union_all(
-    attrition,
-    dplyr::tibble(
-      number_records = newinfInit %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = paste0("Entry after 2018-01-01 & before ",
-                      oneYearLda)
-    )
-  )
+    dplyr::compute(temporary = FALSE) %>%
+    omopgenerics::recordCohortAttrition(reason = paste0("Entry after 2018-01-01 & before ",
+                                                        oneYearLda))
 
   # censor on observation_end, death, end of covid testing or study end date
   newinfInit <- newinfInit %>%
     PatientProfiles::addCohortIntersectDate(
       targetCohortTable = "acute_cohorts",
-      targetCohortId = 2, 
+      targetCohortId = 1, 
       window = list(c(1, 365)),
       order = "first", 
       nameStyle = "next_covid") %>%
-    dplyr::compute()
-  # censor on observation_end, death, study end date, or covid (re)infection
+    dplyr::compute(temporary = FALSE)
+  # censor on observation_end, death or covid (re)infection
   newinfInit <- newinfInit %>%
     dplyr::left_join(observationDeath, by = c("subject_id")) %>%
-    dplyr::compute()
+    dplyr::compute(temporary = FALSE)
 
   newinfInit <- newinfInit %>%
     dplyr::mutate(cohort_end_date = !!CDMConnector::asDate(dplyr::if_else(
@@ -182,43 +136,26 @@ createCovidCohorts <- function(cdm,
     dplyr::mutate(cohort_end_date = !!CDMConnector::asDate(dplyr::if_else(
       !(is.na(.data$next_covid)) & .data$cohort_end_date > .data$next_covid, .data$next_covid, .data$cohort_end_date))) %>%
     dplyr::mutate(follow_up_days = !!CDMConnector::datediff("cohort_start_date", "cohort_end_date")) %>%
-    dplyr::mutate(reason_censoring = dplyr::if_else(!(is.na(.data$death_date)) & cohort_end_date == .data$death_date, "death",
-                                                   dplyr::if_else(cohort_end_date == .data$observation_period_end_date,
-                                                   "end of data collection or exit from database",
-                                                   dplyr::if_else(cohort_end_date == .data$next_covid, "next covid infection", NA )))) %>%
-    compute()
+    compute(temporary = FALSE)
 
   # exclude if follow-up < 120 days
-  excludedFollowup <- newinfInit %>%
-    dplyr::filter(.data$follow_up_days < 120) %>%
-    dplyr::compute()
-  reasonExclusion <- excludedFollowup %>%
-    dplyr::group_by(.data$reason_censoring) %>%
-    dplyr::tally() %>%
-    dplyr::collect()
-  # Do we want sub >120d follow-up attrition? (K)
-  
   newinfInit <- newinfInit %>%
     dplyr::filter(.data$follow_up_days >= 120) %>%
-    dplyr::select(-follow_up_days, -reason_censoring, -next_covid, -death_date, -death, -observation_period_end_date) %>%
-    dplyr::compute()
-
-  attrition <- dplyr::union_all(
-    attrition,
-    dplyr::tibble(
-      number_records = newinfInit %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "> 120 days follow-up"
-    )
-  )
+    dplyr::select(-follow_up_days, -next_covid, -death_date, -death, -observation_period_end_date) %>%
+    dplyr::compute(temporary = FALSE) %>%
+    omopgenerics::recordCohortAttrition(reason = ">120 days of follow-up")
 
   newinfInit <- newinfInit %>%
     dplyr::mutate(cohort_definition_id = 1) %>%
-    dplyr::compute()
+    dplyr::compute(temporary = FALSE)
 
   write.csv(
-    attrition,
+    newinfInit %>%
+      CohortCharacteristics::summariseCohortAttrition() %>%
+      dplyr::mutate(estimate_value = dplyr::if_else(
+        estimate_value %in% c("1","2","3","4"), as.character(NA),
+        estimate_value
+      )),
     file = here::here(outputAt, "attrition_infection.csv")
   )
 
@@ -236,7 +173,7 @@ createCovidCohorts <- function(cdm,
                            dplyr::pull())
 
   overlap <- list()
-  # Right now I am treating the "LC code" as another symptom, can do it as its own thing (K)
+  # Only doing this for the 25 symptoms, the "lc code" is treated as another one of the chronic conditions
   for(i in 1:numLcSymp) {
     outcome <- cdm[["long_covid_cohorts"]] %>%
       dplyr::filter(cohort_definition_id == i) %>%
@@ -252,28 +189,12 @@ createCovidCohorts <- function(cdm,
       dplyr::distinct() %>% 
       dplyr::compute()
 
-    attritionOutcome <- dplyr::tibble(
-      number_records = overlap[[i]] %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "Initial events"
-    )
-
     overlap[[i]] <- overlap[[i]] %>%
       dplyr::mutate(cohort_definition_id = i) %>%
       dplyr::mutate(time_diff = !!CDMConnector::datediff("outcome_date","cohort_start_date")) %>%
       dplyr::filter(time_diff < -90 & time_diff > -366) %>%
       dplyr::select(-time_diff) %>%
       dplyr::compute()
-
-    attritionOutcome <- dplyr::union_all(
-      attritionOutcome,
-      dplyr::tibble(
-        number_records = overlap[[i]] %>% 
-          dplyr::tally() %>% 
-          dplyr::pull(),
-        reason = "Outcome in window (90,365)"
-      ))
 
     overlap[[i]] <- overlap[[i]] %>%
       PatientProfiles::addCohortIntersectFlag(
@@ -290,30 +211,12 @@ createCovidCohorts <- function(cdm,
         dplyr::compute()
     }
 
-    attritionOutcome <- dplyr::union_all(
-      attritionOutcome,
-      dplyr::tibble(
-        number_records = overlap[[i]] %>% 
-          dplyr::tally() %>% 
-          dplyr::pull(),
-        reason = "180 days of washout for the outcome"
-      ))
-
     overlap[[i]] <- overlap[[i]] %>%
       dplyr::select(subject_id,cohort_definition_id,outcome_date,outcome_end) %>%
       dplyr::rename("cohort_start_date" = "outcome_date") %>%
       dplyr::rename("cohort_end_date" = "outcome_end") %>%
       dplyr::distinct() %>%
       dplyr::compute()
-
-    write.csv(
-      attritionOutcome,
-      file = here::here(outputAt, paste0("attrition_",
-                                          attr(cdm[["long_covid_cohorts"]], "cohort_set") %>%
-                                            dplyr::filter(cohort_definition_id == i) %>%
-                                            dplyr::pull("cohort_name")
-                                          ,".csv"))
-    )
   }
 
   overlapFinal <- overlap[[1]]
@@ -380,28 +283,12 @@ createCovidCohorts <- function(cdm,
       dplyr::distinct() %>% 
       dplyr::compute()
 
-    attritionOutcome <- dplyr::tibble(
-      number_records = overlapPasc[[i]] %>% 
-        dplyr::tally() %>% 
-        dplyr::pull(),
-      reason = "Initial events"
-    )
-
     overlapPasc[[i]] <- overlapPasc[[i]] %>%
       dplyr::mutate(cohort_definition_id = i) %>%
       dplyr::mutate(time_diff = !!CDMConnector::datediff("outcome_date","cohort_start_date")) %>%
       dplyr::filter(time_diff < -90 & time_diff > -366) %>%
       dplyr::select(-time_diff) %>%
       dplyr::compute()
-
-    attritionOutcome <- dplyr::union_all(
-      attritionOutcome,
-      dplyr::tibble(
-        number_records = overlapPasc[[i]] %>% 
-          dplyr::tally() %>% 
-          dplyr::pull(),
-        reason = "Outcome in window (90,365)"
-      ))
 
     overlapPasc[[i]] <- overlapPasc[[i]] %>%
       PatientProfiles::addCohortIntersectFlag(
@@ -418,30 +305,12 @@ createCovidCohorts <- function(cdm,
         dplyr::compute()
     }
 
-    attritionOutcome <- dplyr::union_all(
-      attritionOutcome,
-      dplyr::tibble(
-        number_records = overlapPasc[[i]] %>% 
-          dplyr::tally() %>% 
-          dplyr::pull(),
-        reason = "180 days of washout for the outcome"
-      ))
-
     overlapPasc[[i]] <- overlapPasc[[i]] %>%
       dplyr::select(subject_id,cohort_definition_id,outcome_date,outcome_end) %>%
       dplyr::rename("cohort_start_date" = "outcome_date") %>%
       dplyr::rename("cohort_end_date" = "outcome_end") %>%
       dplyr::distinct() %>%
       dplyr::compute()
-
-    write.csv(
-      attritionOutcome,
-      file = here::here(outputAt, paste0("attrition_",
-                                          attr(cdm[["pasc_cohorts"]], "cohort_set") %>%
-                                            dplyr::filter(cohort_definition_id == i) %>%
-                                            dplyr::pull("cohort_name")
-                                          ,".csv"))
-    )
   }
 
   overlapPascFinal <- overlapPasc[[1]]
@@ -523,76 +392,49 @@ createCovidCohorts <- function(cdm,
     cohortSetRef = attr(overlapCohorts, "cohort_set"),
     cohortAttritionRef = attr(overlapCohorts, "cohort_attrition")
   )
-
-  # GET PASC OUTCOMES AS ACUTE OUTCOMES ON THEIR OWN TOO
-  if(attr(cdm[["acute_cohorts"]], "cohort_set") %>% 
-     dplyr::tally() %>% dplyr::pull() < 9) {
-    acuteCohortsAll <- cdm[["acute_cohorts"]] %>%
-      dplyr::union_all(cdm[["pasc_cohorts"]] %>%
-                         dplyr::mutate(cohort_definition_id = cohort_definition_id + 8)) %>%
-      dplyr::compute()
-    attr(acuteCohortsAll, "cohort_set") <- attr(cdm[["acute_cohorts"]], "cohort_set") %>%
-      dplyr::union_all(attr(cdm[["pasc_cohorts"]], "cohort_set") %>%
-                         dplyr::mutate(cohort_definition_id = cohort_definition_id + 8)) %>%
-      dplyr::compute()
-    attr(acuteCohortsAll, "cohort_count") <- getCohortCount(acuteCohortsAll)
-    attr(acuteCohortsAll, "cohort_attrition") <- attr(acuteCohortsAll, "cohort_count") %>%
-      dplyr::mutate(number_subjects = number_records,
-                    reason_id = 0L,
-                    reason = "Qualifying events",
-                    excluded_records = 0L,
-                    excluded_subjects = 0L)
-    attr(acuteCohortsAll, "tbl_name") <- "acute_cohorts"
-    
-    cdm[["acute_cohorts"]] <- newGeneratedCohortSet(
-      cohortRef = computeQuery(acuteCohortsAll, "acute_cohorts", FALSE, attr(cdm, "write_schema"), TRUE),
-      cohortSetRef = attr(acuteCohortsAll, "cohort_set"),
-      cohortAttritionRef = attr(acuteCohortsAll, "cohort_attrition")
-    )
-  }
   
-  ParallelLogger::logInfo("- Getting acute prognosis cohorts")
-  # Generate mortality cohorts
-  acutePrognosisCcohorts <- cdm$death %>%
-    PatientProfiles::addInObservation(indexDate = "death_date") %>%
-    dplyr::filter(.data$in_observation == 1) %>%
-    dplyr::select("person_id", "death_date") %>%
-    dplyr::rename("subject_id" = "person_id") %>%
-    dplyr::inner_join(cdm[["acute_cohorts"]] %>%
-                        dplyr::select("subject_id", "cohort_definition_id"),
-                      by = c("subject_id")) %>%
-    dplyr::select("subject_id", "death_date") %>%
-    dplyr::group_by(.data$subject_id) %>%
-    dbplyr::window_order(.data$death_date) %>%
-    dplyr::filter(dplyr::row_number() == 1) %>%
-    dplyr::rename("cohort_start_date" = "death_date") %>%
-    dplyr::mutate(cohort_definition_id = 1L ,
-                  cohort_end_date = .data$cohort_start_date) %>%
-    dplyr::select(
-      "cohort_definition_id", "subject_id", "cohort_start_date",
-      "cohort_end_date"
-    ) %>%
-    dplyr::ungroup() %>%
-    dplyr::compute()
-  
-  attr(acutePrognosisCcohorts, "cohort_set") <- dplyr::tibble(
-    cohort_definition_id = c(1),
-    cohort_name = c("all_cause_mortality")
-  )
-  attr(acutePrognosisCcohorts, "cohort_count") <- getCohortCount(acutePrognosisCcohorts)
-  attr(acutePrognosisCcohorts, "cohort_attrition") <- attr(acutePrognosisCcohorts, "cohort_count") %>%
-    dplyr::mutate(number_subjects = number_records,
-                  reason_id = 0L,
-                  reason = "Qualifying events",
-                  excluded_records = 0L,
-                  excluded_subjects = 0L)
-  attr(acutePrognosisCcohorts, "tbl_name") <- "acute_prognosis_cohorts"
-  
-  cdm[["acute_prognosis_cohorts"]] <- newGeneratedCohortSet(
-    cohortRef = computeQuery(acutePrognosisCcohorts, "acute_prognosis_cohorts", FALSE, attr(cdm, "write_schema"), TRUE),
-    cohortSetRef = attr(acutePrognosisCcohorts, "cohort_set"),
-    cohortAttritionRef = attr(acutePrognosisCcohorts, "cohort_attrition")
-  )
+  # ParallelLogger::logInfo("- Getting acute prognosis cohorts")
+  # # Generate mortality cohorts
+  # acutePrognosisCcohorts <- cdm$death %>%
+  #   PatientProfiles::addInObservation(indexDate = "death_date") %>%
+  #   dplyr::filter(.data$in_observation == 1) %>%
+  #   dplyr::select("person_id", "death_date") %>%
+  #   dplyr::rename("subject_id" = "person_id") %>%
+  #   dplyr::inner_join(cdm[["acute_cohorts"]] %>%
+  #                       dplyr::select("subject_id", "cohort_definition_id"),
+  #                     by = c("subject_id")) %>%
+  #   dplyr::select("subject_id", "death_date") %>%
+  #   dplyr::group_by(.data$subject_id) %>%
+  #   dbplyr::window_order(.data$death_date) %>%
+  #   dplyr::filter(dplyr::row_number() == 1) %>%
+  #   dplyr::rename("cohort_start_date" = "death_date") %>%
+  #   dplyr::mutate(cohort_definition_id = 1L ,
+  #                 cohort_end_date = .data$cohort_start_date) %>%
+  #   dplyr::select(
+  #     "cohort_definition_id", "subject_id", "cohort_start_date",
+  #     "cohort_end_date"
+  #   ) %>%
+  #   dplyr::ungroup() %>%
+  #   dplyr::compute()
+  # 
+  # attr(acutePrognosisCcohorts, "cohort_set") <- dplyr::tibble(
+  #   cohort_definition_id = c(1),
+  #   cohort_name = c("all_cause_mortality")
+  # )
+  # attr(acutePrognosisCcohorts, "cohort_count") <- getCohortCount(acutePrognosisCcohorts)
+  # attr(acutePrognosisCcohorts, "cohort_attrition") <- attr(acutePrognosisCcohorts, "cohort_count") %>%
+  #   dplyr::mutate(number_subjects = number_records,
+  #                 reason_id = 0L,
+  #                 reason = "Qualifying events",
+  #                 excluded_records = 0L,
+  #                 excluded_subjects = 0L)
+  # attr(acutePrognosisCcohorts, "tbl_name") <- "acute_prognosis_cohorts"
+  # 
+  # cdm[["acute_prognosis_cohorts"]] <- newGeneratedCohortSet(
+  #   cohortRef = computeQuery(acutePrognosisCcohorts, "acute_prognosis_cohorts", FALSE, attr(cdm, "write_schema"), TRUE),
+  #   cohortSetRef = attr(acutePrognosisCcohorts, "cohort_set"),
+  #   cohortAttritionRef = attr(acutePrognosisCcohorts, "cohort_attrition")
+  # )
 
   # ------------------------------------------------------------------------------
   # Print counts of all cohorts (if >5)
@@ -600,26 +442,23 @@ createCovidCohorts <- function(cdm,
   
   cohortNames <- c("chronic_cohorts", "hu_cohorts",
                    "acute_cohorts", "overlap_cohorts",
-                   "acute_prognosis_cohorts") 
+                   "pasc_cohorts")
+                 #  "acute_prognosis_cohorts") 
 
   finalCounts <- list()
   for(i in 1:length(cohortNames)) {
-    finalCounts[[i]] <- attr(cdm[[cohortNames[i]]], "cohort_attrition") %>%
-      dplyr::group_by(cohort_definition_id) %>%
-      dplyr::filter(reason_id == max(reason_id)) %>%
-      dplyr::ungroup() %>%
-      dplyr::select("cohort_definition_id", "number_records", "number_subjects") %>%
-      dplyr::left_join(attr(cdm[[cohortNames[i]]], "cohort_set"), by = "cohort_definition_id") %>%
-      dplyr::collect() %>%
-      dplyr::mutate(table_name = cohortNames[i]) %>%
-      dplyr::select(c("table_name", "cohort_name", "number_records", "number_subjects"))
+    finalCounts[[i]] <- omopgenerics::cohortCount(cdm[[cohortNames[i]]]) %>%
+      dplyr::inner_join(attr(cdm[[cohortNames[i]]], "cohort_set"), 
+                        by = "cohort_definition_id",
+                        copy = TRUE)
   }
 
   finalCounts <- dplyr::bind_rows(finalCounts) %>%
     dplyr::mutate(
       number_records = dplyr::if_else(number_records < 5 & number_records > 0, NA, number_records),
       number_subjects = dplyr::if_else(number_subjects < 5 & number_subjects > 0, NA, number_subjects)
-    )
+    ) %>%
+    dplyr::select(-"cohort_definition_id")
 
   # Export csv
   write.csv(finalCounts,

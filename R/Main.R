@@ -123,7 +123,8 @@ executeIncidencePrevalence <- function(dbConnection,
   
   cohortNames <- c("chronic_cohorts", "hu_cohorts",
                    "acute_cohorts", "overlap_cohorts",
-                   "acute_prognosis_cohorts") 
+                   "pasc_cohorts")
+                #   "acute_prognosis_cohorts") 
   
   cdm <- cdmFromCon(dbConnection, cdmDatabaseSchema,
                     writeSchema = cohortDatabaseSchema,

@@ -107,121 +107,121 @@ getIncidenceResults <- function(cdm,
     # Incidence of death on acute cohorts as denominator
     
     # So that death as an outcome can be picked up
-    cdm[["acute_cohorts"]] <- cdm[["acute_cohorts"]] %>%
-      dplyr::mutate(cohort_end_date = clock::add_days(.data$cohort_end_date,1L)) %>% 
-      dplyr::mutate(cohort_start_date = clock::add_days(.data$cohort_start_date,1L)) %>% 
-      dplyr::compute()
-    
-  denominatorsRest <- analyses %>%
-    dplyr::filter(denominator_table_name != "all_population") %>%
-    dplyr::select(denominator_id, denominator_name, denominator_table_name)
-  
-  for(cnd in denominatorsRest %>% dplyr::pull(denominator_name) %>% unique()) {
-    ParallelLogger::logInfo(paste0("- Calculating incidence ",cnd," denominator"))
-    
-    workingDenominator <- denominatorsRest %>% 
-      dplyr::filter(denominator_name == cnd)
-    
-    cdm <- IncidencePrevalence::generateTargetDenominatorCohortSet(
-      cdm =  cdm,
-      name = "denominator",
-      targetCohortTable = workingDenominator %>% dplyr::pull(denominator_table_name),
-      targetCohortId = workingDenominator %>% dplyr::pull(denominator_id),
-      cohortDateRange = c(as.Date("2018-01-01"), as.Date(latestDataAvailability)),
-      daysPriorObservation = 365,
-      sex = c("Male", "Female", "Both"),
-      ageGroup = list(c(0,39),c(40,65),c(66,150),c(0,150))
-    )
-    
-    inc <- IncidencePrevalence::estimateIncidence(
-      cdm = cdm,
-      denominatorTable = "denominator",
-      outcomeTable = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_table_name),
-      outcomeCohortId = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_id),
-      interval = c("years","months","overall"),
-      completeDatabaseIntervals = FALSE,
-      minCellCount = 5)
-    
-    write.csv(inc, file = here::here(outputIp, paste0(cnd, ".csv")))
-    write.csv(attr(inc, "attrition"), file = here::here(outputIp, paste0(cnd,"_attrition.csv")))
-  }
+  #   cdm[["acute_cohorts"]] <- cdm[["acute_cohorts"]] %>%
+  #     dplyr::mutate(cohort_end_date = clock::add_days(.data$cohort_end_date,1L)) %>% 
+  #     dplyr::mutate(cohort_start_date = clock::add_days(.data$cohort_start_date,1L)) %>% 
+  #     dplyr::compute()
+  #   
+  # denominatorsRest <- analyses %>%
+  #   dplyr::filter(denominator_table_name != "all_population") %>%
+  #   dplyr::select(denominator_id, denominator_name, denominator_table_name)
+  # 
+  # for(cnd in denominatorsRest %>% dplyr::pull(denominator_name) %>% unique()) {
+  #   ParallelLogger::logInfo(paste0("- Calculating incidence ",cnd," denominator"))
+  #   
+  #   workingDenominator <- denominatorsRest %>% 
+  #     dplyr::filter(denominator_name == cnd)
+  #   
+  #   cdm <- IncidencePrevalence::generateTargetDenominatorCohortSet(
+  #     cdm =  cdm,
+  #     name = "denominator",
+  #     targetCohortTable = workingDenominator %>% dplyr::pull(denominator_table_name),
+  #     targetCohortId = workingDenominator %>% dplyr::pull(denominator_id),
+  #     cohortDateRange = c(as.Date("2018-01-01"), as.Date(latestDataAvailability)),
+  #     daysPriorObservation = 365,
+  #     sex = c("Male", "Female", "Both"),
+  #     ageGroup = list(c(0,39),c(40,65),c(66,150),c(0,150))
+  #   )
+  #   
+  #   inc <- IncidencePrevalence::estimateIncidence(
+  #     cdm = cdm,
+  #     denominatorTable = "denominator",
+  #     outcomeTable = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_table_name),
+  #     outcomeCohortId = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_id),
+  #     interval = c("years","months","overall"),
+  #     completeDatabaseIntervals = FALSE,
+  #     minCellCount = 5)
+  #   
+  #   write.csv(inc, file = here::here(outputIp, paste0(cnd, ".csv")))
+  #   write.csv(attr(inc, "attrition"), file = here::here(outputIp, paste0(cnd,"_attrition.csv")))
+  # }
   
   #############################################################################
   # Same but now time at risk 365 days
-  cdm[["acute_cohorts"]] <- cdm[["acute_cohorts"]] %>%
-    dplyr::mutate(cohort_end_date = dplyr::if_else(
-      difftime(cohort_end_date, cohort_start_date, units = "days") > 365,
-      clock::add_days(.data$cohort_start_date,365L),
-      cohort_end_date)) %>% 
-    dplyr::compute()
-  
-  for(cnd in denominatorsRest %>% dplyr::pull(denominator_name) %>% unique()) {
-    ParallelLogger::logInfo(paste0("- Calculating incidence ",cnd," denominator TAR 365"))
-    
-    workingDenominator <- denominatorsRest %>% 
-      dplyr::filter(denominator_name == cnd)
-    
-    cdm <- IncidencePrevalence::generateTargetDenominatorCohortSet(
-      cdm =  cdm,
-      name = "denominator",
-      targetCohortTable = workingDenominator %>% dplyr::pull(denominator_table_name),
-      targetCohortId = workingDenominator %>% dplyr::pull(denominator_id),
-      cohortDateRange = c(as.Date("2018-01-01"), as.Date(latestDataAvailability)),
-      daysPriorObservation = 365,
-      sex = c("Male", "Female", "Both"),
-      ageGroup = list(c(0,39),c(40,65),c(66,150),c(0,150))
-    )
-
-    inc <- IncidencePrevalence::estimateIncidence(
-      cdm = cdm,
-      denominatorTable = "denominator",
-      outcomeTable = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_table_name),
-      outcomeCohortId = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_id),
-      interval = c("years","months","overall"),
-      completeDatabaseIntervals = FALSE,
-      minCellCount = 5)
-
-    write.csv(inc, file = here::here(outputIp, paste0(cnd, "_tar365.csv")))
-    write.csv(attr(inc, "attrition"), file = here::here(outputIp, paste0(cnd,"_tar365_attrition.csv")))
-  }
+  # cdm[["acute_cohorts"]] <- cdm[["acute_cohorts"]] %>%
+  #   dplyr::mutate(cohort_end_date = dplyr::if_else(
+  #     difftime(cohort_end_date, cohort_start_date, units = "days") > 365,
+  #     clock::add_days(.data$cohort_start_date,365L),
+  #     cohort_end_date)) %>% 
+  #   dplyr::compute()
+  # 
+  # for(cnd in denominatorsRest %>% dplyr::pull(denominator_name) %>% unique()) {
+  #   ParallelLogger::logInfo(paste0("- Calculating incidence ",cnd," denominator TAR 365"))
+  #   
+  #   workingDenominator <- denominatorsRest %>% 
+  #     dplyr::filter(denominator_name == cnd)
+  #   
+  #   cdm <- IncidencePrevalence::generateTargetDenominatorCohortSet(
+  #     cdm =  cdm,
+  #     name = "denominator",
+  #     targetCohortTable = workingDenominator %>% dplyr::pull(denominator_table_name),
+  #     targetCohortId = workingDenominator %>% dplyr::pull(denominator_id),
+  #     cohortDateRange = c(as.Date("2018-01-01"), as.Date(latestDataAvailability)),
+  #     daysPriorObservation = 365,
+  #     sex = c("Male", "Female", "Both"),
+  #     ageGroup = list(c(0,39),c(40,65),c(66,150),c(0,150))
+  #   )
+  # 
+  #   inc <- IncidencePrevalence::estimateIncidence(
+  #     cdm = cdm,
+  #     denominatorTable = "denominator",
+  #     outcomeTable = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_table_name),
+  #     outcomeCohortId = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_id),
+  #     interval = c("years","months","overall"),
+  #     completeDatabaseIntervals = FALSE,
+  #     minCellCount = 5)
+  # 
+  #   write.csv(inc, file = here::here(outputIp, paste0(cnd, "_tar365.csv")))
+  #   write.csv(attr(inc, "attrition"), file = here::here(outputIp, paste0(cnd,"_tar365_attrition.csv")))
+  # }
   
   #########################################################################################
   # Same but now time at risk 30 days
-  cdm[["acute_cohorts"]] <- cdm[["acute_cohorts"]] %>%
-    dplyr::mutate(cohort_end_date = dplyr::if_else(
-      difftime(cohort_end_date, cohort_start_date, units = "days") > 30,
-      clock::add_days(.data$cohort_start_date,30L),
-      cohort_end_date)) %>% 
-    dplyr::compute()
-  
-  for(cnd in denominatorsRest %>% dplyr::pull(denominator_name) %>% unique()) {
-    ParallelLogger::logInfo(paste0("- Calculating incidence ",cnd," denominator TAR 30"))
-    
-    workingDenominator <- denominatorsRest %>% 
-      dplyr::filter(denominator_name == cnd)
-    
-    cdm <- IncidencePrevalence::generateTargetDenominatorCohortSet(
-      cdm =  cdm,
-      name = "denominator",
-      targetCohortTable = workingDenominator %>% dplyr::pull(denominator_table_name),
-      targetCohortId = workingDenominator %>% dplyr::pull(denominator_id),
-      cohortDateRange = c(as.Date("2018-01-01"), as.Date(latestDataAvailability)),
-      daysPriorObservation = 365,
-      sex = c("Male", "Female", "Both"),
-      ageGroup = list(c(0,39),c(40,65),c(66,150),c(0,150))
-    )
-    
-    inc <- IncidencePrevalence::estimateIncidence(
-      cdm = cdm,
-      denominatorTable = "denominator",
-      outcomeTable = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_table_name),
-      outcomeCohortId = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_id),
-      interval = c("years","months","overall"),
-      completeDatabaseIntervals = FALSE,
-      minCellCount = 5)
-    
-    write.csv(inc, file = here::here(outputIp, paste0(cnd, "_tar30.csv")))
-    write.csv(attr(inc, "attrition"), file = here::here(outputIp, paste0(cnd,"_tar30_attrition.csv")))
-  }
+  # cdm[["acute_cohorts"]] <- cdm[["acute_cohorts"]] %>%
+  #   dplyr::mutate(cohort_end_date = dplyr::if_else(
+  #     difftime(cohort_end_date, cohort_start_date, units = "days") > 30,
+  #     clock::add_days(.data$cohort_start_date,30L),
+  #     cohort_end_date)) %>% 
+  #   dplyr::compute()
+  # 
+  # for(cnd in denominatorsRest %>% dplyr::pull(denominator_name) %>% unique()) {
+  #   ParallelLogger::logInfo(paste0("- Calculating incidence ",cnd," denominator TAR 30"))
+  #   
+  #   workingDenominator <- denominatorsRest %>% 
+  #     dplyr::filter(denominator_name == cnd)
+  #   
+  #   cdm <- IncidencePrevalence::generateTargetDenominatorCohortSet(
+  #     cdm =  cdm,
+  #     name = "denominator",
+  #     targetCohortTable = workingDenominator %>% dplyr::pull(denominator_table_name),
+  #     targetCohortId = workingDenominator %>% dplyr::pull(denominator_id),
+  #     cohortDateRange = c(as.Date("2018-01-01"), as.Date(latestDataAvailability)),
+  #     daysPriorObservation = 365,
+  #     sex = c("Male", "Female", "Both"),
+  #     ageGroup = list(c(0,39),c(40,65),c(66,150),c(0,150))
+  #   )
+  #   
+  #   inc <- IncidencePrevalence::estimateIncidence(
+  #     cdm = cdm,
+  #     denominatorTable = "denominator",
+  #     outcomeTable = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_table_name),
+  #     outcomeCohortId = analyses %>% dplyr::filter(denominator_name == cnd) %>% dplyr::pull(outcome_id),
+  #     interval = c("years","months","overall"),
+  #     completeDatabaseIntervals = FALSE,
+  #     minCellCount = 5)
+  #   
+  #   write.csv(inc, file = here::here(outputIp, paste0(cnd, "_tar30.csv")))
+  #   write.csv(attr(inc, "attrition"), file = here::here(outputIp, paste0(cnd,"_tar30_attrition.csv")))
+  # }
 
 }
