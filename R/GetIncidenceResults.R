@@ -86,7 +86,7 @@ getIncidenceResults <- function(cdm,
   
   for(tn in outcomesAllPop %>% dplyr::pull(outcome_table_name) %>% unique()) {
     
-    outcomeIdsAllPop <- cdm[[tn]] |> 
+    outcomeIdsAllPop <- attr(cdm[[tn]], "cohort_set") |> 
       dplyr::pull(cohort_definition_id) |> 
       unique()
     
