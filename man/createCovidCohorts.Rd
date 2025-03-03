@@ -4,12 +4,18 @@
 \alias{createCovidCohorts}
 \title{Get the COVID related cohorts of the CHAPTER study}
 \usage{
-createCovidCohorts(cdm)
+createCovidCohorts(cdm, tempDir, cohortNames, latestDataAvailability)
 }
 \arguments{
 \item{cdm}{A cdm object as created using the
 \code{\link[CDMConnector]{cdmFromCon}} function 
 in the CDMConnector package.}
+
+\item{tempDir}{Directory where the output is stored}
+
+\item{cohortNames}{Names of all the cohorts stored in the cdm}
+
+\item{latestDataAvailability}{Date of the latest data availability}
 }
 \description{
 Get the COVID related cohorts of the CHAPTER study

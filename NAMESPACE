@@ -2,6 +2,7 @@
 
 export(createCovidCohorts)
 export(executeIncidencePrevalence)
+export(executeIncidencePrevalenceExtra)
 export(getIncidenceResults)
 export(uploadResults)
 importFrom(dplyr,"%>%")

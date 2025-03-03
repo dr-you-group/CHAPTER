@@ -4,7 +4,13 @@
 \alias{getIncidenceResults}
 \title{Get the incidence results of the CHAPTER study}
 \usage{
-getIncidenceResults(cdm, analyses)
+getIncidenceResults(
+  cdm,
+  analyses,
+  cohortNames,
+  tempDir,
+  latestDataAvailability
+)
 }
 \arguments{
 \item{cdm}{A cdm object as created using the
@@ -15,6 +21,10 @@ in the CDMConnector package.}
 conduct, retrieved from the settings folder}
 
 \item{cohortNames}{Names of all the cohorts stored in the cdm}
+
+\item{tempDir}{Directory where the output is stored}
+
+\item{latestDataAvailability}{Date of the latest data availability}
 }
 \description{
 Get the incidence results of the CHAPTER study
