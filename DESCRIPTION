@@ -12,6 +12,8 @@ Depends:
     CDMConnector,
     IncidencePrevalence,
     PatientProfiles,
+    OmopSketch,
+    omopgenerics,
     dplyr
 Imports:
     here
@@ -23,4 +25,4 @@ Suggests:
 License: Apache License 2.0
 VignetteBuilder: knitr
 LazyData: TRUE
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2

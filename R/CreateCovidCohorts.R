@@ -149,15 +149,8 @@ createCovidCohorts <- function(cdm,
     dplyr::mutate(cohort_definition_id = 1) %>%
     dplyr::compute(temporary = FALSE)
 
-  write.csv(
-    newinfInit %>%
-      CohortCharacteristics::summariseCohortAttrition() %>%
-      dplyr::mutate(estimate_value = dplyr::if_else(
-        estimate_value %in% c("1","2","3","4"), as.character(NA),
-        estimate_value
-      )),
-    file = here::here(outputAt, "attrition_infection.csv")
-  )
+  att_infection <- newinfInit %>%
+      CohortCharacteristics::summariseCohortAttrition()
 
   # ------------------------------------------------------------------------------
   # GETTING FINAL OUTCOME COHORTS
@@ -393,49 +386,6 @@ createCovidCohorts <- function(cdm,
     cohortAttritionRef = attr(overlapCohorts, "cohort_attrition")
   )
   
-  # ParallelLogger::logInfo("- Getting acute prognosis cohorts")
-  # # Generate mortality cohorts
-  # acutePrognosisCcohorts <- cdm$death %>%
-  #   PatientProfiles::addInObservation(indexDate = "death_date") %>%
-  #   dplyr::filter(.data$in_observation == 1) %>%
-  #   dplyr::select("person_id", "death_date") %>%
-  #   dplyr::rename("subject_id" = "person_id") %>%
-  #   dplyr::inner_join(cdm[["acute_cohorts"]] %>%
-  #                       dplyr::select("subject_id", "cohort_definition_id"),
-  #                     by = c("subject_id")) %>%
-  #   dplyr::select("subject_id", "death_date") %>%
-  #   dplyr::group_by(.data$subject_id) %>%
-  #   dbplyr::window_order(.data$death_date) %>%
-  #   dplyr::filter(dplyr::row_number() == 1) %>%
-  #   dplyr::rename("cohort_start_date" = "death_date") %>%
-  #   dplyr::mutate(cohort_definition_id = 1L ,
-  #                 cohort_end_date = .data$cohort_start_date) %>%
-  #   dplyr::select(
-  #     "cohort_definition_id", "subject_id", "cohort_start_date",
-  #     "cohort_end_date"
-  #   ) %>%
-  #   dplyr::ungroup() %>%
-  #   dplyr::compute()
-  # 
-  # attr(acutePrognosisCcohorts, "cohort_set") <- dplyr::tibble(
-  #   cohort_definition_id = c(1),
-  #   cohort_name = c("all_cause_mortality")
-  # )
-  # attr(acutePrognosisCcohorts, "cohort_count") <- getCohortCount(acutePrognosisCcohorts)
-  # attr(acutePrognosisCcohorts, "cohort_attrition") <- attr(acutePrognosisCcohorts, "cohort_count") %>%
-  #   dplyr::mutate(number_subjects = number_records,
-  #                 reason_id = 0L,
-  #                 reason = "Qualifying events",
-  #                 excluded_records = 0L,
-  #                 excluded_subjects = 0L)
-  # attr(acutePrognosisCcohorts, "tbl_name") <- "acute_prognosis_cohorts"
-  # 
-  # cdm[["acute_prognosis_cohorts"]] <- newGeneratedCohortSet(
-  #   cohortRef = computeQuery(acutePrognosisCcohorts, "acute_prognosis_cohorts", FALSE, attr(cdm, "write_schema"), TRUE),
-  #   cohortSetRef = attr(acutePrognosisCcohorts, "cohort_set"),
-  #   cohortAttritionRef = attr(acutePrognosisCcohorts, "cohort_attrition")
-  # )
-
   # ------------------------------------------------------------------------------
   # Print counts of all cohorts (if >5)
   ParallelLogger::logInfo("- Getting cohort counts")
