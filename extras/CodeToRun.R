@@ -1,40 +1,54 @@
-# Sys.setlocale("LC_ALL", "Korean")
+# Sys.setlocale()
+renv::restore()
+
 library(CHAPTER)
 
+
 # Optional: specify where the temporary files (used by the Andromeda package) will be created:
-options(andromedaTempFolder = "s:/andromedaTemp")
+options(andromedaTempFolder = "C:/andromedaTemp")
 
 # Maximum number of cores to be used:
 maxCores <- parallel::detectCores()
 
 # The folder where the study intermediate and result files will be written:
-outputFolder <- "c:/CHAPTER"
+outputFolder <- "C:/Users/paul9/Rprojects/CHAPTERresultsfinal"
 
 # Details for connecting to the server:
 # See ?DatabaseConnector::createConnectionDetails for help
-connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = "postgresql",
-                                                                server = "some.server.com/ohdsi",
-                                                                user = "joe",
-                                                                password = "secret")
+db <- DBI::dbConnect(odbc::odbc(),
+                     Driver   = "ODBC Driver 18 for SQL Server",
+                     Server   = "10.19.10.241",
+                     Database = "YUHS_SC",
+                     UID      = "paul9567",
+                     PWD = "Euez3yz!@#",
+                     TrustServerCertificate = "yes",
+                     Port     = 1433)
+
 
 # The name of the database schema where the CDM data can be found:
-cdmDatabaseSchema <- "cdm_synpuf"
+cdmDatabaseSchema <- "CDM_v531_YUHS.CDM"
 
 # The name of the database schema and table where the study-specific cohorts will be instantiated:
-cohortDatabaseSchema <- "scratch.dbo"
-cohortTable <- "my_study_cohorts"
+cohortDatabaseSchema <- "cohortdb.changhoonhan"
+cohortTable <- "CHAPTERfinalcompact"
 
 # Some meta-information that will be used by the export function:
-databaseId <- "Synpuf"
-databaseName <- "Medicare Claims Synthetic Public Use Files (SynPUFs)"
-databaseDescription <- "Medicare Claims Synthetic Public Use Files (SynPUFs) were created to allow interested parties to gain familiarity using Medicare claims data while protecting beneficiary privacy. These files are intended to promote development of software and applications that utilize files in this format, train researchers on the use and complexities of Centers for Medicare and Medicaid Services (CMS) claims, and support safe data mining innovations. The SynPUFs were created by combining randomized information from multiple unique beneficiaries and changing variable values. This randomization and combining of beneficiary information ensures privacy of health information."
+databaseId <- "YUHS"
+databaseName <- "YUHS"
+databaseDescription <- "YUHS"
 
 # For some database platforms (e.g. Oracle): define a schema that can be used to emulate temp tables:
 options(sqlRenderTempEmulationSchema = NULL)
 
-CHAPTER::executeIncidencePrevalence(
-  outputFolder  = "/Users/chan/data/chatper_try",
-  databaseId = "Yonsei"
+CHAPTER::executeIncidencePrevalenceFinal(
+  dbConnection = db,
+  cdmDatabaseSchema,
+  cohortDatabaseSchema,
+  writePrefix = NULL,
+  outputFolder,
+  databaseId,
+  readCohorts = TRUE,
+  minCellCount = 5
 )
 
 CohortDiagnostics::preMergeDiagnosticsFiles(dataFolder = outputFolder)
