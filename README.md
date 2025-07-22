@@ -51,12 +51,15 @@ How to run
 	# The folder where the study intermediate and result files will be written:
 	outputFolder <- "c:/CHAPTER"
 
-	# Details for connecting to the server:
-	# See ?DatabaseConnector::createConnectionDetails for help
-	connectionDetails <- DatabaseConnector::createConnectionDetails(dbms = "postgresql",
-									server = "some.server.com/ohdsi",
-									user = "joe",
-									password = "secret")
+	# Details for connecting to the server
+        db <- DBI::dbConnect(odbc::odbc(),
+                             Driver   = "ODBC Driver 18 for SQL Server",
+                             Server   = "10.19.10.241",
+                             Database = "Synpuf",
+                             UID      = "******",
+                             PWD = "******",
+                             TrustServerCertificate = "yes",
+                             Port     = 1433)
 
 	# The name of the database schema where the CDM data can be found:
 	cdmDatabaseSchema <- "cdm_synpuf"
@@ -73,37 +76,19 @@ How to run
 	# For some database platforms (e.g. Oracle): define a schema that can be used to emulate temp tables:
 	options(sqlRenderTempEmulationSchema = NULL)
 
-	runCohortDiagnostics(connectionDetails = connectionDetails,
-            cdmDatabaseSchema = cdmDatabaseSchema,
-            cohortDatabaseSchema = cohortDatabaseSchema,
-            cohortTable = cohortTable,
-            outputFolder = outputFolder,
-            databaseId = databaseId,
-            databaseName = databaseName,
-            databaseDescription = databaseDescription,
-            verifyDependencies = TRUE,
-            createCohorts = TRUE,
-            synthesizePositiveControls = TRUE,
-            runAnalyses = TRUE,
-            packageResults = TRUE,
-            maxCores = maxCores)
+        CHAPTER::executeIncidencePrevalenceFinal(dbConnection = db,
+                                                 cdmDatabaseSchema,
+                                                 cohortDatabaseSchema,
+                                                 writePrefix = NULL,
+                                                 outputFolder,
+                                                 databaseId,
+                                                 readCohorts = TRUE,
+                                                 minCellCount = 5
+                                                 )
 	```
 
-4. Upload the file ```export/Results_<DatabaseId>.zip``` in the output folder to the study coordinator:
+4. Share the file ```export/Results_<DatabaseId>.zip``` in the output folder to the study coordinator
 
-	```r
-	uploadResults(outputFolder, privateKeyFileName = "<file>", userName = "<name>")
-	```
-
-	Where ```<file>``` and ```<name<``` are the credentials provided to you personally by the study coordinator.
-
-5. To view the results, use the Shiny app:
-
-	```r
-	launchDiagnosticsExplorer()
-	```
-
-  Note that you can save plots from within the Shiny app.
 
 License
 =======
